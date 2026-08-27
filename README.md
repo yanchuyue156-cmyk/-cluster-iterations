@@ -34,6 +34,8 @@ python3 -m venv .venv
 
 正式流程使用 `pandas`、`geopandas`、`scikit-learn` 及其自动安装的空间计算依赖。
 
+AIS 输入约 3 GB，不纳入 Git；仅查看已提交看板时无需准备它。需要重跑聚类时，按 [data/ais/README.md](data/ais/README.md) 从团队共享存储或本地备份同步到 `data/ais/cleaned/data/`。
+
 ## 地图看板
 
 导出当前参数迭代（第 15 轮）的看板数据：

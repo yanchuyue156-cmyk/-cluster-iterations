@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 .DS_Store
-data/ais/
+# AIS 原始输入约 3 GB，不纳入 Git；仅提交其准备说明。
+data/ais/*
+!data/ais/README.md
 results/cache/
 results/current/
