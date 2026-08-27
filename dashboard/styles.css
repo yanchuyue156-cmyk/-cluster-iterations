@@ -1,0 +1,28 @@
+:root {
+  color: #e6edf7;
+  background: #101722;
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; display: flex; min-height: 100vh; }
+.sidebar { width: 320px; padding: 28px 24px; background: #101722; border-right: 1px solid #29384c; overflow-y: auto; }
+.brand h1 { margin: 5px 0 8px; font-size: 25px; line-height: 1.25; }
+.eyebrow { margin: 0; color: #5cd6c0; font-size: 11px; font-weight: 700; letter-spacing: .14em; }
+.subtle, .hint, .timestamp { color: #91a1b7; font-size: 13px; line-height: 1.6; }
+.stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 28px 0; }
+.stats article { min-height: 76px; padding: 13px; background: #172231; border: 1px solid #26384d; border-radius: 10px; }
+.stats span { display: block; color: #a8b6c9; font-size: 12px; }
+.stats strong { display: block; margin-top: 5px; font-size: 24px; color: #fff; }
+.legend { padding-top: 6px; border-top: 1px solid #29384c; }
+.legend h2 { margin: 18px 0 12px; font-size: 15px; }
+.legend p { display: flex; align-items: center; gap: 9px; margin: 10px 0; color: #c5d0df; font-size: 13px; }
+.swatch { width: 14px; height: 14px; display: inline-block; border-radius: 3px; }
+.berth { background: #37b4e6; }.anchorage { background: #ff9e52; }.terminal { background: #d578ff; }
+.ref-berth { background: #67d48b; }.ref-anchorage { background: #f3e85c; }
+#map { flex: 1; min-height: 100vh; background: #9eb8c8; }
+.leaflet-popup-content { min-width: 180px; font-family: inherit; }
+.popup-title { margin: 0 0 7px; font-weight: 700; font-size: 14px; }
+.popup-row { margin: 4px 0; color: #334155; font-size: 12px; }
+.popup-row b { color: #0f172a; }
+@media (max-width: 760px) { body { display: block; } .sidebar { width: 100%; border-right: 0; } #map { min-height: 65vh; } }
