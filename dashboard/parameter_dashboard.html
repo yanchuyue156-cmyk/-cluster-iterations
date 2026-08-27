@@ -3,111 +3,127 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AIS 预测参数看板</title>
+  <title>AIS 停泊识别：参数与准确率总览</title>
   <style>
-    :root { --bg:#f4f7fa; --ink:#18344e; --muted:#64798b; --line:#d7e1e9; --card:#fff; --blue:#247bb7; --green:#168467; --orange:#d77824; --purple:#8447c3; --teal:#177e91; }
-    * { box-sizing:border-box; } body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
-    main { max-width:1240px; margin:auto; padding:34px 24px 64px; } h1 { margin:0; font-size:30px; } h2 { font-size:21px; margin:0; } p { color:var(--muted); line-height:1.65; }
-    .head { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; margin-bottom:26px; } .chip { white-space:nowrap; background:#e7f0f8; color:#1a5d90; padding:8px 12px; border-radius:999px; font-size:13px; font-weight:650; }
-    .flow { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:20px 0 30px; } .step { min-height:78px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; position:relative; } .step:not(:last-child)::after { content:"→"; position:absolute; right:-15px; top:27px; z-index:2; color:#8ca1b2; font-size:20px; } .step b { display:block; font-size:14px; } .step span { color:var(--muted); font-size:12px; }
-    .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; } .card { background:var(--card); border:1px solid var(--line); border-radius:13px; overflow:hidden; box-shadow:0 1px 2px rgba(22,47,70,.04); } .card-header { padding:16px 18px 12px; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:center; } .icon { width:11px; height:11px; border-radius:50%; background:var(--blue); } .berth .icon { background:var(--teal); } .anchorage .icon { background:var(--orange); } .terminal .icon { background:var(--purple); }
-    .card p { margin:0; padding:0 18px 12px; font-size:13px; } table { width:100%; border-collapse:collapse; } th,td { border-top:1px solid #edf1f4; padding:10px 18px; text-align:left; vertical-align:top; font-size:13px; } th { width:39%; color:var(--muted); font-weight:500; } td strong { font-size:14px; } .tag { display:inline-block; color:#326078; background:#e9f1f5; border-radius:5px; padding:2px 6px; font-size:11px; margin-left:5px; }
-    .wide { grid-column:1 / -1; } .rule { margin:0 18px 16px; padding:12px 14px; border-radius:8px; background:#f7fafc; border-left:4px solid var(--green); font-size:13px; line-height:1.6; } a { color:var(--blue); text-decoration:none; } a:hover { text-decoration:underline; }
-    @media(max-width:800px) { main { padding:24px 14px; } .head { display:block; } .chip { display:inline-block; margin-top:10px; } .flow { grid-template-columns:1fr; } .step:not(:last-child)::after { content:"↓"; right:50%; top:auto; bottom:-20px; } .grid { grid-template-columns:1fr; } .wide { grid-column:auto; } }
+    :root { --ink:#18334b; --muted:#65798a; --line:#dbe5ec; --bg:#f4f7fa; --card:#fff; --blue:#2879b7; --green:#21815c; --orange:#dc762e; --yellow:#ad9700; --purple:#8050c0; }
+    * { box-sizing:border-box; } body { margin:0; color:var(--ink); background:var(--bg); font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif; }
+    main { max-width:1440px; margin:auto; padding:32px 28px 64px; } h1,h2,h3,p { margin-top:0; } h1 { margin-bottom:8px; font-size:30px; } h2 { margin-bottom:14px; font-size:20px; } h3 { margin-bottom:5px; font-size:15px; } p { color:var(--muted); line-height:1.65; } code { background:#f0f4f7; border-radius:4px; padding:1px 5px; color:#244e6c; }
+    .hero { display:flex; justify-content:space-between; gap:24px; align-items:flex-start; margin-bottom:24px; } .hero p { max-width:860px; margin-bottom:0; } .badge { flex:none; padding:8px 13px; border-radius:999px; color:#176044; background:#e4f4ec; font-size:13px; font-weight:700; }
+    .flow { display:grid; grid-template-columns:repeat(5,1fr); gap:9px; margin:20px 0 26px; } .step { min-height:70px; background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; position:relative; } .step:not(:last-child)::after { content:"→"; position:absolute; right:-15px; top:23px; color:#8ba0b0; font-size:21px; z-index:1; } .step b { display:block; font-size:14px; } .step span { color:var(--muted); font-size:12px; }
+    .section { margin-top:28px; } .section-note { margin:-6px 0 14px; font-size:13px; }
+    .cards { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; } .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:17px; box-shadow:0 1px 2px rgba(20,53,75,.035); } .card .label { color:var(--muted); font-size:13px; } .card strong { display:block; margin-top:5px; font-size:27px; } .card small { display:block; margin-top:5px; color:var(--muted); font-size:12px; line-height:1.5; } .card.blue { border-top:4px solid var(--blue); } .card.orange { border-top:4px solid var(--orange); } .card.purple { border-top:4px solid var(--purple); }
+    .accuracy { display:grid; grid-template-columns:1fr 1fr; gap:16px; } .panel { background:var(--card); border:1px solid var(--line); border-radius:13px; overflow:hidden; } .panel-head { padding:17px 18px 13px; border-bottom:1px solid var(--line); } .panel-head p { margin:0; font-size:13px; } .metric-grid { padding:14px 18px 18px; display:grid; grid-template-columns:repeat(3,1fr); gap:12px; } .metric { border-left:3px solid var(--blue); padding-left:9px; } .anchorage .metric { border-left-color:var(--orange); } .metric span { display:block; color:var(--muted); font-size:12px; line-height:1.35; } .metric b { display:block; margin-top:4px; font-size:21px; } .metric em { color:var(--muted); font-style:normal; font-size:11px; }
+    .map-card { background:var(--card); border:1px solid var(--line); border-radius:13px; overflow:hidden; } .map-head { padding:16px 18px; display:flex; justify-content:space-between; gap:16px; align-items:center; } .map-head p { margin:3px 0 0; font-size:13px; } iframe { display:block; width:100%; height:710px; border:0; border-top:1px solid var(--line); background:#9eb8c8; }
+    .parameter-groups { display:grid; grid-template-columns:1fr 1fr; gap:16px; } .parameter-card { background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; } .parameter-card h3 { margin:0; padding:14px 16px; background:#f9fbfc; border-bottom:1px solid var(--line); } table { width:100%; border-collapse:collapse; } th,td { padding:9px 14px; text-align:left; vertical-align:top; border-top:1px solid #edf1f4; font-size:12.5px; line-height:1.45; } tbody tr:first-child th,tbody tr:first-child td { border-top:0; } th { width:49%; color:var(--muted); font-weight:500; } td { font-weight:650; } .wide { grid-column:1/-1; }
+    .definition { background:#edf5f8; border-left:4px solid var(--blue); border-radius:7px; padding:13px 15px; color:#38586e; font-size:13px; line-height:1.65; } .footer-links { display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; } a { display:inline-block; color:#16659d; text-decoration:none; border:1px solid #c8dbe8; background:#f7fbfe; border-radius:7px; padding:8px 10px; font-size:13px; } a:hover { background:#edf7fd; }
+    @media(max-width:900px) { main { padding:24px 15px 48px; } .hero { display:block; } .badge { display:inline-block; margin-top:12px; } .flow,.cards,.accuracy,.parameter-groups { grid-template-columns:1fr; } .step:not(:last-child)::after { content:"↓"; left:50%; right:auto; top:auto; bottom:-22px; } .metric-grid { grid-template-columns:repeat(2,1fr); } iframe { height:600px; } }
   </style>
 </head>
 <body>
   <main>
-    <section class="head">
+    <section class="hero">
       <div>
-        <h1>AIS 停泊识别与预测参数看板</h1>
-        <p>当前运行版本为 <code>iteration_09_anchorage_expanded_center_range</code>。这里展示每一步“用什么数据、按什么规则筛选、用什么参数聚类”。</p>
+        <h1>中国 AIS 停泊识别：参数与准确率总览</h1>
+        <p>当前展示第 13 轮正式结果 <code>iteration_13_anchorage_adaptive_envelopes</code>。泊位与码头参数自第 05 轮确认后保持不变；后续仅迭代锚地识别与范围生成。</p>
       </div>
-      <span class="chip">当前正式参数</span>
+      <span class="badge">可直接用于汇报</span>
     </section>
 
-    <section class="flow" aria-label="处理流程">
-      <div class="step"><b>1. AIS 停泊点</b><span>原始时间、位置记录</span></div>
-      <div class="step"><b>2. 停泊段</b><span>低速连续记录</span></div>
-      <div class="step"><b>3. 停泊行为</b><span>泊位型 / 锚地型</span></div>
-      <div class="step"><b>4. 泊位与锚地</b><span>分别空间聚类</span></div>
-      <div class="step"><b>5. 码头</b><span>由泊位组合而成</span></div>
+    <section class="flow" aria-label="识别流程">
+      <div class="step"><b>1. AIS 记录</b><span>MMSI、时间、经纬度</span></div>
+      <div class="step"><b>2. 停泊段</b><span>低速连续活动</span></div>
+      <div class="step"><b>3. 行为分类</b><span>泊位型 / 锚地型</span></div>
+      <div class="step"><b>4. 空间聚类</b><span>泊位、锚地独立识别</span></div>
+      <div class="step"><b>5. 码头与评估</b><span>空间对照真实数据</span></div>
     </section>
 
-    <section class="grid">
-      <article class="card">
-        <div class="card-header"><i class="icon"></i><h2>1. AIS 停泊点</h2></div>
-        <p>输入是每艘船按时间排序的 AIS 位置记录；这一层尚未进行聚类。</p>
-        <table><tbody>
-          <tr><th>必要字段</th><td><strong>MMSI、时间、纬度、经度</strong></td></tr>
-          <tr><th>经度范围</th><td><strong>73°E – 135°E</strong><span class="tag">中国范围过滤</span></td></tr>
-          <tr><th>纬度范围</th><td><strong>18°N – 54°N</strong><span class="tag">中国范围过滤</span></td></tr>
-          <tr><th>船舶顺序</th><td>每个 MMSI 内按时间升序排列。</td></tr>
-        </tbody></table>
-      </article>
-
-      <article class="card">
-        <div class="card-header"><i class="icon"></i><h2>2. 停泊段</h2></div>
-        <p>将同一艘船连续的低速 AIS 点合并为一个停泊段。</p>
-        <table><tbody>
-          <tr><th><code>stop_speed_kn</code></th><td><strong>1.0 节</strong><span class="tag">识别阈值</span><br>相邻点推算速度低于此值，认定为停泊状态。</td></tr>
-          <tr><th><code>min_stop_minutes</code></th><td><strong>60 分钟</strong><span class="tag">时长过滤</span><br>连续停泊至少 60 分钟才保留。</td></tr>
-          <tr><th>每段输出</th><td>中心位置、起止时间、持续时长、最大漂移距离。</td></tr>
-        </tbody></table>
-      </article>
-
-      <article class="card wide">
-        <div class="card-header"><i class="icon"></i><h2>3. 停泊行为分类</h2></div>
-        <p>不直接用“速度”区分泊位和锚地，而是使用停泊段内的空间漂移和持续时间。</p>
-        <table><tbody>
-          <tr><th>泊位型停泊</th><td><strong><code>berth_drift_max_m = 150 m</code></strong><br>最大漂移小于 150 m：船的位置稳定，更像靠泊。</td></tr>
-          <tr><th>锚地型停泊</th><td><strong><code>anchorage_drift_min_m = 300 m</code></strong> 且 <strong><code>anchorage_duration_min = 1,440 分钟</code></strong><br>漂移较大且停留至少 24 小时：更像在锚区随潮流/风向摆动。</td></tr>
-          <tr><th>中间状态</th><td>不满足上述两类规则的停泊段，不进入泊位或锚地输出。</td></tr>
-        </tbody></table>
-      </article>
-
-      <article class="card berth">
-        <div class="card-header"><i class="icon"></i><h2>4A. 泊位</h2></div>
-        <p>把多次稳定靠泊的停泊段聚为单个泊位。</p>
-        <table><tbody>
-          <tr><th><code>berth_eps_m</code></th><td><strong>150 m</strong><span class="tag">DBSCAN 半径</span></td></tr>
-          <tr><th><code>berth_min_samples</code></th><td><strong>2</strong><span class="tag">最少停泊段</span></td></tr>
-          <tr><th>泊位中心</th><td><strong>停泊时长加权 medoid</strong><br>必定落在真实 AIS 停泊位置。</td></tr>
-          <tr><th><code>berth_outline_buffer_m</code></th><td><strong>50 m</strong><span class="tag">仅范围面</span></td></tr>
-          <tr><th>距岸过滤</th><td><strong>4,000 m</strong> 以内；落在中国陆地内者例外保留。</td></tr>
-        </tbody></table>
-      </article>
-
-      <article class="card anchorage">
-        <div class="card-header"><i class="icon"></i><h2>4B. 锚地</h2></div>
-        <p>把长时间、漂移较大的锚地型停泊段聚成锚地范围。</p>
-        <table><tbody>
-          <tr><th><code>anchorage_eps_m</code></th><td><strong>6,000 m</strong><span class="tag">DBSCAN 半径</span></td></tr>
-          <tr><th><code>anchorage_min_samples</code></th><td><strong>5</strong><span class="tag">最少停泊段</span></td></tr>
-          <tr><th>锚地中心</th><td><strong>停泊时长加权 medoid</strong><span class="tag">真实 AIS 位置</span><br>中心不再取所有停泊段的平均坐标。</td></tr>
-          <tr><th><code>anchorage_shape_method</code></th><td><strong>center_buffer</strong><span class="tag">自适应圆形</span><br>围绕锚地中心生成圆润范围；不用凹包或凸包。</td></tr>
-          <tr><th>范围半径</th><td>中心距离的<strong>时长加权 90% 分位数</strong>；最小 180 m，最大沿用 6 km 聚类半径。</td></tr>
-          <tr><th>开阔水域</th><td><strong>启用</strong><span class="tag">河岸/岛岸边界</span><br>中心和范围均须距陆地边界至少 <strong>3 km</strong>；排除狭窄内河和贴岸水道。</td></tr>
-          <tr><th>码头排除</th><td><strong>启用</strong><span class="tag">固定参考</span><br>中心落入码头范围（含 5 m 安全间隔）则剔除；其余重叠部分从锚地面裁掉。</td></tr>
-        </tbody></table>
-      </article>
-
-      <article class="card terminal wide">
-        <div class="card-header"><i class="icon"></i><h2>5. 码头</h2></div>
-        <p>码头由空间相邻的泊位组成；先控制链式合并，再生成展示用的活动范围面。</p>
-        <table><tbody>
-          <tr><th><code>terminal_eps_m</code></th><td><strong>1,000 m</strong><span class="tag">DBSCAN 连通半径</span><br>相邻泊位可被归入同一码头候选。</td></tr>
-          <tr><th><code>terminal_max_span_m</code></th><td><strong>3,000 m</strong><span class="tag">反链式合并</span><br>超长沿岸连通组会切分，防止一串泊位形成一个十几公里长的码头。</td></tr>
-          <tr><th><code>terminal_min_samples</code></th><td><strong>1</strong><br>一个泊位也可构成一个预测码头。</td></tr>
-          <tr><th>码头中心</th><td><strong>泊位时长加权 medoid</strong><br>不使用范围面质心。</td></tr>
-          <tr><th><code>terminal_merge_buffer_m</code></th><td><strong>180 m</strong><br>先扩后缩，填补同一范围内的小缝隙。</td></tr>
-          <tr><th><code>terminal_outline_buffer_m</code></th><td><strong>500 m</strong><span class="tag">仅范围面</span><br>中心与归属确定后整体外扩，不参与聚类。</td></tr>
-          <tr><th><code>terminal_simplify_m</code></th><td><strong>35 m</strong><br>简化边界锯齿。</td></tr>
-        </tbody></table>
-      </article>
+    <section class="section">
+      <h2>结果规模</h2>
+      <div class="cards">
+        <article class="card blue"><span class="label">预测泊位</span><strong>1,428</strong><small>当前没有真实泊位参考数据；仅展示识别数量，不计算泊位准确率。</small></article>
+        <article class="card orange"><span class="label">预测锚地</span><strong>104</strong><small>处理后真实锚地：136</small></article>
+        <article class="card purple"><span class="label">预测码头（港口）</span><strong>738</strong><small>真实码头原始记录 931；其中 922 条参与中国范围评估。</small></article>
+      </div>
     </section>
 
-    <p style="margin-top:24px">完整可打印版本见 <a href="../当前参数总览.md">当前参数总览.md</a>；地图结果见 <a href="iterations/iteration_09_anchorage_expanded_center_range/index.html">第 09 轮地图看板</a>。</p>
+    <section class="section">
+      <h2>空间准确率</h2>
+      <p class="section-note">“合格率”只判断预测面与真实面是否存在有效面积重叠；面积精度、召回和 IoU 则进一步评价范围的大小与位置。</p>
+      <div class="accuracy">
+        <article class="panel terminal">
+          <div class="panel-head"><h3>码头（港口）</h3><p>中心一对一匹配半径 2 km；真实码头参考面允许一对多空间重叠。</p></div>
+          <div class="metric-grid">
+            <div class="metric"><span>预测合格率</span><b>75.6%</b><em>558 / 738</em></div>
+            <div class="metric"><span>真实码头发现率</span><b>69.1%</b><em>637 / 922</em></div>
+            <div class="metric"><span>一对一中心匹配</span><b>482</b><em>中心距离中位数 393 m</em></div>
+            <div class="metric"><span>全局面积精度</span><b>47.6%</b><em>预测范围落入真实范围</em></div>
+            <div class="metric"><span>全局面积召回</span><b>11.5%</b><em>真实范围被预测覆盖</em></div>
+            <div class="metric"><span>全局 IoU</span><b>0.102</b><em>范围并集的一致度</em></div>
+          </div>
+        </article>
+        <article class="panel anchorage">
+          <div class="panel-head"><h3>锚地</h3><p>使用无重叠的处理后真实锚地；中心一对一匹配半径 10 km。</p></div>
+          <div class="metric-grid">
+            <div class="metric"><span>预测合格率</span><b>62.5%</b><em>65 / 104</em></div>
+            <div class="metric"><span>真实锚地发现率</span><b>58.1%</b><em>79 / 136</em></div>
+            <div class="metric"><span>合格率 F1</span><b>0.602</b><em>合格率与发现率的平衡</em></div>
+            <div class="metric"><span>全局面积精度</span><b>44.2%</b><em>预测范围落入真实范围</em></div>
+            <div class="metric"><span>全局面积召回</span><b>28.7%</b><em>真实范围被预测覆盖</em></div>
+            <div class="metric"><span>全局 IoU</span><b>0.211</b><em>范围并集的一致度</em></div>
+          </div>
+        </article>
+      </div>
+      <div class="definition">
+        <b>预测合格率如何计算：</b><code>与至少一个真实面有效相交的预测面数量 ÷ 全部预测面数量</code>。例如锚地为 <code>65 ÷ 104 = 62.5%</code>，码头为 <code>558 ÷ 738 = 75.6%</code>。它回答“预测出来的对象里，有多少落在真实对象区域内”。<br>
+        <b>真实发现率如何计算：</b><code>与至少一个预测面有效相交的真实面数量 ÷ 全部参与评估的真实面数量</code>。例如锚地为 <code>79 ÷ 136 = 58.1%</code>，码头为 <code>637 ÷ 922 = 69.1%</code>。它回答“真实对象里，有多少被模型找到”。<br>
+        <b>有效相交：</b>预测面与真实面的共同面积必须大于 1㎡；仅边界相碰不计入。两项指标不要求一对一匹配，也不要求面积大小相同。全局面积精度、召回和 IoU 才用于评价范围大小与边界位置。
+      </div>
+    </section>
+
+    <section class="section map-card">
+      <div class="map-head"><div><h2>空间结果看板</h2><p>橙色为预测锚地、紫色为预测码头；可在地图右上角叠加真实锚地和真实码头。</p></div><a href="iterations/iteration_13_anchorage_adaptive_envelopes/index.html">单独打开地图 ↗</a></div>
+      <iframe title="第十三版 AIS 空间识别地图" src="iterations/iteration_13_anchorage_adaptive_envelopes/index.html"></iframe>
+    </section>
+
+    <section class="section">
+      <h2>当前使用参数</h2>
+      <p class="section-note">下表列出本轮实际生效的阈值与规则；泊位与码头参数固定，锚地使用 AIS 点群自适应范围面。</p>
+      <div class="parameter-groups">
+        <article class="parameter-card"><h3>停泊段与行为分类</h3><table><tbody>
+          <tr><th><code>stop_speed_kn</code></th><td>1.0 节</td></tr><tr><th><code>min_stop_minutes</code></th><td>60 分钟</td></tr>
+          <tr><th><code>berth_drift_max_m</code></th><td>150 m</td></tr><tr><th><code>anchorage_drift_min_m</code></th><td>300 m</td></tr>
+          <tr><th><code>anchorage_duration_min</code></th><td>1,440 分钟（24 小时）</td></tr>
+        </tbody></table></article>
+        <article class="parameter-card"><h3>泊位（固定）</h3><table><tbody>
+          <tr><th><code>berth_eps_m</code></th><td>150 m</td></tr><tr><th><code>berth_min_samples</code></th><td>2</td></tr>
+          <tr><th>中心规则</th><td>停泊时长加权 medoid</td></tr><tr><th><code>berth_outline_buffer_m</code></th><td>50 m</td></tr>
+          <tr><th><code>berth_coast_max_m</code></th><td>4,000 m</td></tr>
+        </tbody></table></article>
+        <article class="parameter-card"><h3>锚地（第 13 轮）</h3><table><tbody>
+          <tr><th><code>anchorage_eps_m</code></th><td>8,000 m</td></tr><tr><th><code>anchorage_min_samples</code></th><td>3</td></tr>
+          <tr><th><code>anchorage_max_span_m</code></th><td>不启用（防止切碎真实大锚地）</td></tr><tr><th>范围方法</th><td><code>adaptive_point_buffer_union</code></td></tr>
+          <tr><th>自适应外扩</th><td>点群对角线 × 40%，限制 2–8 km</td></tr><tr><th><code>anchorage_simplify_m</code></th><td>40 m</td></tr>
+          <tr><th>开阔水域</th><td>启用；陆地边界净距 3 km</td></tr><tr><th>陆地 / 码头排除</th><td>启用；额外间隔各 5 m</td></tr>
+          <tr><th><code>anchorage_coast_max_m</code></th><td>20,000 m</td></tr>
+        </tbody></table></article>
+        <article class="parameter-card"><h3>码头（港口，固定）</h3><table><tbody>
+          <tr><th><code>terminal_eps_m</code></th><td>1,000 m</td></tr><tr><th><code>terminal_min_samples</code></th><td>1</td></tr>
+          <tr><th><code>terminal_max_span_m</code></th><td>3,000 m</td></tr><tr><th>中心规则</th><td>泊位时长加权 medoid</td></tr>
+          <tr><th><code>terminal_merge_buffer_m</code></th><td>180 m</td></tr><tr><th><code>terminal_outline_buffer_m</code></th><td>500 m</td></tr>
+          <tr><th><code>terminal_simplify_m</code></th><td>35 m</td></tr>
+        </tbody></table></article>
+        <article class="parameter-card wide"><h3>数据范围与运行设置</h3><table><tbody>
+          <tr><th>输入字段</th><td>MMSI、BaseDateTime、Latitude、Longitude</td></tr><tr><th>中国范围过滤</th><td>经度 73–135°E；纬度 18–54°N</td></tr>
+          <tr><th>坐标与面积计算</th><td>输入 / 导出 EPSG:4326；聚类、距离和面积评估 EPSG:3857</td></tr><tr><th>AIS 读取线程</th><td>8</td></tr>
+          <tr><th>真实锚地参考</th><td>156 条原始记录处理为 136 条；删除近乎完全覆盖项并裁切部分重叠</td></tr>
+        </tbody></table></article>
+      </div>
+      <div class="footer-links">
+        <a href="../当前参数总览.md">查看参数总览</a>
+        <a href="../results/iterations/iteration_13_anchorage_adaptive_envelopes/anchorage_comparison.md">查看锚地完整评估</a>
+        <a href="../results/iterations/iteration_13_anchorage_adaptive_envelopes/terminal_comparison.md">查看码头完整评估</a>
+      </div>
+    </section>
   </main>
 </body>
 </html>

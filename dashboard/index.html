@@ -3,38 +3,54 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AIS 停泊点识别看板</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="styles.css" />
+    <title>AIS 停泊识别 · 看板目录</title>
+    <style>
+      :root { color: #18334b; background: #f4f7fa; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+      body { margin: 0; } main { max-width: 1180px; margin: auto; padding: 44px 24px 64px; }
+      h1 { margin: 0 0 8px; font-size: 30px; } .intro { color: #65798a; line-height: 1.7; }
+      .actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 24px 0 30px; }
+      .actions a, .open { display: inline-block; border-radius: 8px; padding: 9px 13px; text-decoration: none; font-size: 14px; font-weight: 650; color: #176044; background: #e4f4ec; }
+      .actions a.secondary { color: #244e6c; background: #eaf2f8; }
+      #current { margin: 14px 0 22px; padding: 14px 16px; border-left: 4px solid #21815c; border-radius: 8px; background: #fff; color: #38586e; }
+      #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(315px, 1fr)); gap: 14px; }
+      article { border: 1px solid #dbe5ec; border-radius: 12px; padding: 17px; background: #fff; box-shadow: 0 1px 2px rgba(20, 53, 75, .04); }
+      article.current { border-color: #8fc9a9; box-shadow: 0 0 0 2px #e4f4ec; } h2 { margin: 0; font-size: 16px; } .tag { float: right; color: #176044; font-size: 12px; font-weight: 700; }
+      .desc { min-height: 46px; color: #65798a; font-size: 13px; line-height: 1.55; } .stats { margin: 13px 0; color: #40596b; font-size: 13px; } .stats span { margin-right: 12px; white-space: nowrap; }
+      .open { color: #fff; background: #2879b7; } .empty { color: #65798a; }
+    </style>
   </head>
   <body>
-    <aside class="sidebar">
-      <div class="brand">
-        <p class="eyebrow">AIS CLUSTERING</p>
-        <h1>中国停泊点识别看板</h1>
-        <p class="subtle">预测结果与真实数据空间对照</p>
-      </div>
-      <section class="stats" aria-label="统计概览">
-        <article><span>预测泊位</span><strong id="predicted-berths">—</strong></article>
-        <article><span>预测锚地</span><strong id="predicted-anchorages">—</strong></article>
-        <article><span>预测码头</span><strong id="predicted-terminals">—</strong></article>
-        <article><span>真实码头</span><strong id="reference-berths">—</strong></article>
-        <article><span>真实锚地</span><strong id="reference-anchorages">—</strong></article>
-      </section>
-      <section class="legend">
-        <h2>图层说明</h2>
-        <p><i class="swatch berth"></i>预测泊位</p>
-        <p><i class="swatch anchorage"></i>预测锚地</p>
-        <p><i class="swatch terminal"></i>预测码头</p>
-        <p><i class="swatch ref-berth"></i>真实码头</p>
-        <p><i class="swatch ref-anchorage"></i>真实锚地</p>
-      </section>
-      <p class="hint">默认展示预测图层；可在地图右上角手动叠加真实数据。中国陆地与海岸线来自本地数据，不依赖网络底图。</p>
-      <p class="timestamp" id="generated-at"></p>
-    </aside>
-    <main id="map" aria-label="中国 AIS 停泊点地图"></main>
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="data.js"></script>
-    <script src="app.js"></script>
+    <main>
+      <h1>中国 AIS 停泊识别</h1>
+      <p class="intro">每一轮参数迭代均保留独立、可直接打开的交互地图。当前参数版本为第 15 轮；第 13 轮参数汇报保持为固定历史快照。</p>
+      <nav class="actions">
+        <a id="current-link" href="iterations/iteration_15_terminal_non_overlapping_rectangles/index.html">打开当前第 15 轮看板</a>
+        <a class="secondary" href="parameter_dashboard.html">打开第 13 轮参数汇报</a>
+        <a class="secondary" href="AIS_停泊识别_第13版_汇报看板.html">打开第 13 轮离线汇报</a>
+      </nav>
+      <div id="current">正在载入看板目录…</div>
+      <section id="grid" aria-label="迭代看板列表"></section>
+    </main>
+    <script src="catalog.js"></script>
+    <script>
+      const catalog = window.DASHBOARD_CATALOG;
+      const grid = document.getElementById("grid");
+      const current = document.getElementById("current");
+      if (!catalog || !catalog.items.length) {
+        current.textContent = "暂未找到已导出的迭代看板。";
+      } else {
+        const active = catalog.items.find((item) => item.isCurrent);
+        if (active) {
+          current.innerHTML = `当前版本：<b>${active.name}</b> · 泊位 ${active.predicted_berths.toLocaleString()} · 锚地 ${active.predicted_anchorages.toLocaleString()} · 码头 ${active.predicted_terminals.toLocaleString()}`;
+          document.getElementById("current-link").href = active.href;
+        }
+        catalog.items.forEach((item) => {
+          const card = document.createElement("article");
+          if (item.isCurrent) card.className = "current";
+          card.innerHTML = `${item.isCurrent ? '<span class="tag">当前参数</span>' : ''}<h2>${item.name}</h2><p class="desc">${item.description || "—"}</p><p class="stats"><span>泊位 ${item.predicted_berths.toLocaleString()}</span><span>锚地 ${item.predicted_anchorages.toLocaleString()}</span><span>码头 ${item.predicted_terminals.toLocaleString()}</span></p><a class="open" href="${item.href}">打开地图</a>`;
+          grid.appendChild(card);
+        });
+      }
+    </script>
   </body>
 </html>

@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Optional
 
@@ -62,10 +62,14 @@ class PipelineConfig:
     berth_outline_buffer_m: float = 0.0
     anchorage_eps_m: float = 6000.0
     anchorage_min_samples: int = 5
+    anchorage_max_span_m: float | None = None
     anchorage_shape_method: str = "concave_hull"
     anchorage_center_coverage_quantile: float = 0.5
     anchorage_concavity_ratio: float = 0.10
     anchorage_outline_buffer_m: float = 180.0
+    anchorage_adaptive_buffer_min_m: float = 0.0
+    anchorage_adaptive_buffer_max_m: float = 0.0
+    anchorage_adaptive_buffer_span_ratio: float = 0.0
     anchorage_simplify_m: float = 40.0
     anchorage_exclude_terminal_overlap: bool = False
     anchorage_terminal_clearance_m: float = 0.0
@@ -81,6 +85,8 @@ class PipelineConfig:
     terminal_max_span_m: float | None = None
     terminal_merge_buffer_m: float = 180.0
     terminal_outline_buffer_m: float = 0.0
+    terminal_shape_method: str = "merged_outline"
+    terminal_resolve_rectangle_overlaps: bool = False
     terminal_simplify_m: float = 35.0
     workers: int = 8
     china_lon_min: float = 73.0
@@ -252,6 +258,38 @@ def run_dbscan(frame: pd.DataFrame, eps_m: float, min_samples: int) -> pd.DataFr
     return clustered
 
 
+def run_anchorage_clustering(frame: pd.DataFrame, config: PipelineConfig) -> pd.DataFrame:
+    """聚类锚地，并可限制 DBSCAN 链式连通造成的单簇最大跨度。"""
+    clustered = run_dbscan(frame, config.anchorage_eps_m, config.anchorage_min_samples)
+    if clustered.empty or config.anchorage_max_span_m is None:
+        return clustered
+
+    initial = clustered["cluster"].to_numpy()
+    coordinates = _project_coordinates(clustered)
+    labels = np.full(len(clustered), -1, dtype="int64")
+    next_label = 0
+    for initial_label in np.unique(initial):
+        indices = np.flatnonzero(initial == initial_label)
+        if initial_label == -1:
+            continue
+        if len(indices) < config.anchorage_min_samples:
+            continue
+        split = AgglomerativeClustering(
+            n_clusters=None,
+            distance_threshold=config.anchorage_max_span_m,
+            linkage="complete",
+            metric="euclidean",
+        ).fit_predict(coordinates[indices])
+        for split_label in np.unique(split):
+            split_indices = indices[split == split_label]
+            if len(split_indices) < config.anchorage_min_samples:
+                continue
+            labels[split_indices] = next_label
+            next_label += 1
+    clustered["cluster"] = labels
+    return clustered
+
+
 def cluster_to_rectangles(clustered: pd.DataFrame, config: PipelineConfig) -> pd.DataFrame:
     records = []
     for cluster_id, group in clustered.loc[clustered["cluster"].ne(-1)].groupby("cluster", sort=True):
@@ -330,6 +368,22 @@ def cluster_to_anchorage_areas(clustered: pd.DataFrame, config: PipelineConfig) 
             center_lon, center_lat = float(group["lon"].mean()), float(group["lat"].mean())
             center_method = "arithmetic_mean_stop_location"
             radius_m = np.nan
+        elif config.anchorage_shape_method == "adaptive_point_buffer_union":
+            # 按点群跨度自适应外扩：紧凑点群不被统一大缓冲放大，拉长的外海点群
+            # 则保留足够的延伸范围。后续仍由陆地和码头掩膜裁掉不合理部分。
+            hull = center_points.convex_hull
+            bounds = hull.bounds
+            span_m = float(np.hypot(bounds[2] - bounds[0], bounds[3] - bounds[1]))
+            radius_m = float(
+                np.clip(
+                    span_m * config.anchorage_adaptive_buffer_span_ratio,
+                    config.anchorage_adaptive_buffer_min_m,
+                    config.anchorage_adaptive_buffer_max_m,
+                )
+            )
+            area_3857 = hull.buffer(radius_m, join_style=1)
+            center_lon, center_lat = float(group["lon"].mean()), float(group["lat"].mean())
+            center_method = "arithmetic_mean_stop_location"
         elif config.anchorage_shape_method == "center_buffer":
             # 与码头中心相同：取停泊时长加权 medoid，保证中心是真实 AIS 停泊位置。
             # 半径为该中心的时长加权距离分位数；上限复用既有 6 km 锚地聚类半径。
@@ -455,6 +509,69 @@ def terminal_cluster_labels(coordinates: np.ndarray, config: PipelineConfig) -> 
     return labels
 
 
+def resolve_terminal_rectangle_overlaps(terminals: pd.DataFrame) -> pd.DataFrame:
+    """沿相邻码头 AIS 中心的主方向切开重叠矩形，且保持每个范围为矩形。"""
+    if terminals.empty:
+        return terminals.copy()
+    rectangles = list(
+        gpd.GeoSeries.from_wkt(terminals["polygon"], crs="EPSG:4326").to_crs("EPSG:3857")
+    )
+    centers = _project_coordinates(terminals)
+    dwell = pd.to_numeric(terminals["dwell_minutes"], errors="coerce").fillna(0).to_numpy()
+    terminal_ids = terminals["terminal_id"].to_numpy()
+
+    # 只会缩小矩形，因此切分不会产生新的重叠；保留循环是为了处理同一矩形
+    # 与多个邻居连续相交的情形。
+    for _ in range(len(rectangles)):
+        changed = False
+        spatial_index = gpd.GeoSeries(rectangles, crs="EPSG:3857").sindex
+        for left_index, left in enumerate(rectangles):
+            for right_index in spatial_index.query(left, predicate="intersects"):
+                if right_index <= left_index:
+                    continue
+                right = rectangles[right_index]
+                overlap = left.intersection(right)
+                if overlap.is_empty or overlap.area <= 1.0:
+                    continue
+                left_bounds, right_bounds = left.bounds, right.bounds
+                delta_x = centers[left_index, 0] - centers[right_index, 0]
+                delta_y = centers[left_index, 1] - centers[right_index, 1]
+                # 以中心更分离的轴切开。中心重合时，时长更高（再按 ID）的一侧优先。
+                if abs(delta_x) >= abs(delta_y):
+                    cut = (max(left_bounds[0], right_bounds[0]) + min(left_bounds[2], right_bounds[2])) / 2
+                    left_first = delta_x < 0 or (
+                        delta_x == 0
+                        and (dwell[left_index], -terminal_ids[left_index])
+                        >= (dwell[right_index], -terminal_ids[right_index])
+                    )
+                    if left_first:
+                        rectangles[left_index] = box(left_bounds[0], left_bounds[1], min(left_bounds[2], cut), left_bounds[3])
+                        rectangles[right_index] = box(max(right_bounds[0], cut), right_bounds[1], right_bounds[2], right_bounds[3])
+                    else:
+                        rectangles[right_index] = box(right_bounds[0], right_bounds[1], min(right_bounds[2], cut), right_bounds[3])
+                        rectangles[left_index] = box(max(left_bounds[0], cut), left_bounds[1], left_bounds[2], left_bounds[3])
+                else:
+                    cut = (max(left_bounds[1], right_bounds[1]) + min(left_bounds[3], right_bounds[3])) / 2
+                    left_first = delta_y < 0 or (
+                        delta_y == 0
+                        and (dwell[left_index], -terminal_ids[left_index])
+                        >= (dwell[right_index], -terminal_ids[right_index])
+                    )
+                    if left_first:
+                        rectangles[left_index] = box(left_bounds[0], left_bounds[1], left_bounds[2], min(left_bounds[3], cut))
+                        rectangles[right_index] = box(right_bounds[0], max(right_bounds[1], cut), right_bounds[2], right_bounds[3])
+                    else:
+                        rectangles[right_index] = box(right_bounds[0], right_bounds[1], right_bounds[2], min(right_bounds[3], cut))
+                        rectangles[left_index] = box(left_bounds[0], max(left_bounds[1], cut), left_bounds[2], left_bounds[3])
+                changed = True
+        if not changed:
+            break
+
+    result = terminals.copy()
+    result["polygon"] = gpd.GeoSeries(rectangles, crs="EPSG:3857").to_crs("EPSG:4326").to_wkt().to_numpy()
+    return result
+
+
 def build_terminals(berths: pd.DataFrame, config: PipelineConfig) -> pd.DataFrame:
     if berths.empty:
         return pd.DataFrame(columns=["terminal_id", "lat", "lon", "berth_count", "polygon"])
@@ -474,9 +591,19 @@ def build_terminals(berths: pd.DataFrame, config: PipelineConfig) -> pd.DataFram
             )
         except TopologicalError:
             outline = merged.envelope
+        if config.terminal_shape_method == "bounding_rectangle":
+            # 矩形化只发生在归属与中心已确定之后，不影响聚类或 AIS 中心。
+            outline = outline.envelope
+        elif config.terminal_shape_method != "merged_outline":
+            raise ValueError(f"未知码头范围方法：{config.terminal_shape_method!r}")
         if config.terminal_outline_buffer_m > 0:
             # 范围外扩只发生在码头归属已确定之后，不影响 DBSCAN 聚类或 AIS 中心。
-            outline = outline.buffer(config.terminal_outline_buffer_m, join_style=1)
+            join_style = 2 if config.terminal_shape_method == "bounding_rectangle" else 1
+            outline = outline.buffer(config.terminal_outline_buffer_m, join_style=join_style)
+        if config.terminal_shape_method == "bounding_rectangle":
+            # 外扩后重新取 envelope，确保是严格的四边矩形而非圆角面。
+            outline = outline.envelope
+        else:
             outline = outline.simplify(config.terminal_simplify_m, preserve_topology=True)
         outline_wgs84 = gpd.GeoSeries([outline], crs="EPSG:3857").to_crs("EPSG:4326").iloc[0]
         center_lon, center_lat = weighted_medoid_lon_lat(
@@ -493,7 +620,13 @@ def build_terminals(berths: pd.DataFrame, config: PipelineConfig) -> pd.DataFram
                 "polygon": outline_wgs84.wkt,
             }
         )
-    return pd.DataFrame(records)
+    terminals = pd.DataFrame(records)
+    if (
+        config.terminal_shape_method == "bounding_rectangle"
+        and config.terminal_resolve_rectangle_overlaps
+    ):
+        terminals = resolve_terminal_rectangle_overlaps(terminals)
+    return terminals
 
 
 def filter_berths(berths: pd.DataFrame, config: PipelineConfig) -> pd.DataFrame:
@@ -507,9 +640,11 @@ def filter_berths(berths: pd.DataFrame, config: PipelineConfig) -> pd.DataFrame:
 
 
 def filter_anchorages(anchorages: pd.DataFrame, config: PipelineConfig) -> pd.DataFrame:
-    keep = anchorages["distance_to_coast"].between(
-        config.anchorage_coast_min_m, config.anchorage_coast_max_m
-    )
+    # 开阔水域模式下，锚地的中心可以靠近岸边，但范围面仍会在后续步骤中
+    # 裁掉距陆地边界不足 `anchorage_coast_min_m` 的部分。这样可保留从港外
+    # 向深海延伸的锚地，避免仅因 AIS 中心偏岸就整块误删。
+    coast_min_m = 0.0 if config.anchorage_open_water_only else config.anchorage_coast_min_m
+    keep = anchorages["distance_to_coast"].between(coast_min_m, config.anchorage_coast_max_m)
     if config.anchorage_exclude_land_overlap:
         keep &= ~anchorages["inside_china_land"]
     return anchorages.loc[keep].reset_index(drop=True)
@@ -611,16 +746,19 @@ def run_pipeline(
         config,
     )
     anchorages = cluster_to_anchorage_areas(
-        run_dbscan(
-            stops.loc[stops["behavior"].eq("anchorage_like")],
-            config.anchorage_eps_m,
-            config.anchorage_min_samples,
-        ),
+        run_anchorage_clustering(stops.loc[stops["behavior"].eq("anchorage_like")], config),
         config,
     )
 
     berths = filter_berths(add_land_flag(add_coast_distance(berths, coastline)), config)
     terminals = build_terminals(berths, config)
+    # 码头展示形状（例如矩形）不得反向影响锚地识别。锚地排除始终使用同一
+    # 聚类结果的原始合并轮廓，确保仅改变码头可视化范围面时锚地结果保持稳定。
+    terminal_exclusion_areas = (
+        build_terminals(berths, replace(config, terminal_shape_method="merged_outline"))
+        if config.terminal_shape_method != "merged_outline"
+        else terminals
+    )
     anchorage_distance_reference = (
         get_china_land_boundary()
         if config.anchorage_use_land_boundary_distance
@@ -636,7 +774,7 @@ def run_pipeline(
         anchorages = exclude_anchorages_from_land(anchorages, land_clearance)
     if config.anchorage_exclude_terminal_overlap:
         anchorages = exclude_anchorages_from_terminals(
-            anchorages, terminals, config.anchorage_terminal_clearance_m
+            anchorages, terminal_exclusion_areas, config.anchorage_terminal_clearance_m
         )
     export_results(berths, anchorages, terminals, output_dir)
 

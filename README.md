@@ -12,9 +12,7 @@
 - `results/`：算法和实验输出。
   - 每次正式运行自动创建下一个两位编号目录，如 `01/`、`02/`。
   - `results/README.md` 记录每一个编号版本的算法改动和用途；`cache/` 会保存停泊段缓存，加快后续运行。
-- `notebooks/历史实验_6.4.ipynb`：历史实验记录，已改为读取当前目录结构。
-- `dashboard/`：交互式地图看板；编号结果使用根看板，迭代结果会生成同名的独立看板目录。
-- `历史备份/`：旧项目完整副本和压缩包，不参与当前流程，可待新流程稳定后再决定是否删除。
+- `dashboard/`：交互式地图看板；`index.html` 是所有迭代看板的目录入口，当前参数版为第 15 轮。第 13 轮参数汇报和离线汇报是固定历史快照。
 
 ## 脚本入口
 
@@ -38,7 +36,7 @@ python3 -m venv .venv
 
 ## 地图看板
 
-聚类完成后导出看板数据：
+导出当前参数迭代（第 15 轮）的看板数据：
 
 ```bash
 .venv/bin/python -m src.common.export_dashboard_data
@@ -47,11 +45,11 @@ python3 -m http.server 8000 --directory dashboard
 
 然后在浏览器打开 `http://localhost:8000`。也可以直接双击 `dashboard/index.html`：看板会优先从同目录的 `data.js` 读取已导出的数据。地图底图使用 OpenStreetMap，因此首次查看需要网络连接。
 
-若要导出某轮参数迭代的地图数据，指定对应结果目录：
+若要重新导出某轮参数迭代的地图数据，指定对应结果目录：
 
 ```bash
 .venv/bin/python -m src.common.export_dashboard_data \
   --result-dir results/iterations/iteration_01_baseline
 ```
 
-该命令会生成同名迭代看板：`dashboard/iterations/iteration_01_baseline/`。启动本地服务后，在浏览器打开 `http://localhost:8000/iterations/iteration_01_baseline/`。
+该命令会生成同名迭代看板：`dashboard/iterations/iteration_01_baseline/`，并更新根目录的看板目录。启动本地服务后，在浏览器打开 `http://localhost:8000/`，或直接打开对应轮次的 `index.html`。

@@ -19,6 +19,7 @@ CHINA_SHP = (
 
 RESULTS_DIR = PROJECT_ROOT / "results"
 ITERATION_RESULTS_DIR = RESULTS_DIR / "iterations"
+CURRENT_ITERATION_NAME = "iteration_15_terminal_non_overlapping_rectangles"
 
 
 def numbered_result_dirs() -> list[Path]:
@@ -49,3 +50,8 @@ def iteration_result_dir(iteration_name: str) -> Path:
     if not iteration_name or Path(iteration_name).name != iteration_name:
         raise ValueError(f"无效的迭代名称：{iteration_name!r}")
     return ITERATION_RESULTS_DIR / iteration_name
+
+
+def current_iteration_result_dir() -> Path:
+    """返回项目对外展示的当前参数迭代结果。"""
+    return iteration_result_dir(CURRENT_ITERATION_NAME)
